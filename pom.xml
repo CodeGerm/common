@@ -37,8 +37,33 @@
 	<dependencies>
 		<dependency>
 			<groupId>org.apache.flume</groupId>
+			<artifactId>flume-ng-core</artifactId>
+			<version>1.6.0</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.flume</groupId>
+			<artifactId>flume-ng-core</artifactId>
+			<version>1.6.0</version>
+			<scope>provided</scope>
+			<classifier>sources</classifier>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.flume</groupId>
+			<artifactId>flume-ng-node</artifactId>
+			<version>1.6.0</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.flume</groupId>
 			<artifactId>flume-ng-sdk</artifactId>
 			<version>1.6.0</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.avro</groupId>
+			<artifactId>avro-ipc</artifactId>
+			<version>${avro.version}</version>
 			<scope>provided</scope>
 		</dependency>
 
@@ -46,6 +71,7 @@
 			<groupId>org.apache.avro</groupId>
 			<artifactId>avro</artifactId>
 			<version>${avro.version}</version>
+			<scope>provided</scope>
 		</dependency>
 		<!-- Spring framework -->
 		<dependency>
