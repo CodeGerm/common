@@ -57,31 +57,31 @@ public class EventIpcClient<E> {
 	protected long requestTimeout = TimeUnit.MILLISECONDS.convert(20,
 			TimeUnit.SECONDS);
 
-	private ExecutorService callTimeoutPool;
-	private final ReentrantLock stateLock = new ReentrantLock();
+	protected ExecutorService callTimeoutPool;
+	protected final ReentrantLock stateLock = new ReentrantLock();
 
 	/**
 	 * Guarded by {@code stateLock}
 	 */
-	private ConnState connState;
+	protected ConnState connState;
 
-	private InetSocketAddress address;
-	private boolean enableSsl;
-	private boolean trustAllCerts;
-	private String truststore;
-	private String truststorePassword;
-	private String truststoreType;
-	private boolean isHttp = true;
+	protected InetSocketAddress address;
+	protected boolean enableSsl;
+	protected boolean trustAllCerts;
+	protected String truststore;
+	protected String truststorePassword;
+	protected String truststoreType;
+	protected boolean isHttp = true;
 
-	private Transceiver transceiver;
+	protected Transceiver transceiver;
 
-	private Class<E> exClass;
-	private E avroClient;
+	protected Class<E> exClass;
+	protected E avroClient;
 
-	private static final Logger logger = LoggerFactory
+	protected static final Logger logger = LoggerFactory
 			.getLogger(EventIpcClient.class);
-	private boolean enableDeflateCompression;
-	private int compressionLevel;
+	protected boolean enableDeflateCompression;
+	protected int compressionLevel;
 
 	/**
 	 * This constructor is intended to be called from {@link RpcClientFactory}.
@@ -247,7 +247,7 @@ public class EventIpcClient<E> {
 	/**
 	 * If the connection state != READY, throws {@link EventDeliveryException}.
 	 */
-	private void assertReady() throws EventDeliveryException {
+	public void assertReady() throws EventDeliveryException {
 		stateLock.lock();
 		try {
 			ConnState curState = connState;

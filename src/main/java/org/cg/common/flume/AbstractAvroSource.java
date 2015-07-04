@@ -120,6 +120,8 @@ public abstract class AbstractAvroSource  extends AbstractSource implements
 		if (sourceCounter == null) {
 			sourceCounter = new SourceCounter(getName());
 		}
+		
+		customConfig(context);
 	}
 
 	
