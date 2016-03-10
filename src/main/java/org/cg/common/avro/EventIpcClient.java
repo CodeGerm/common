@@ -59,6 +59,7 @@ public class EventIpcClient<E> {
 
 	protected ExecutorService callTimeoutPool;
 	protected final ReentrantLock stateLock = new ReentrantLock();
+	protected URL targetUrl = null;
 
 	/**
 	 * Guarded by {@code stateLock}
@@ -117,10 +118,13 @@ public class EventIpcClient<E> {
 						"Flume Avro RPC Client Call Invoker"));
 		NioClientSocketChannelFactory socketChannelFactory = null;
 
+		if (targetUrl == null) {
+			targetUrl = new URL("http://" + address.getHostName() + ":" + address.getPort())
+		}
+		
 		try {
 			if (isHttp) {
-				transceiver = new HttpTransceiver(new URL("http://"
-						+ address.getHostName() + ":" + address.getPort()));
+				transceiver = new HttpTransceiver(targetUrl);
 			} else {
 
 				if (enableDeflateCompression || enableSsl) {
