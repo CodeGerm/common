@@ -118,11 +118,10 @@ public class EventIpcClient<E> {
 						"Flume Avro RPC Client Call Invoker"));
 		NioClientSocketChannelFactory socketChannelFactory = null;
 
-		if (targetUrl == null) {
-			targetUrl = new URL("http://" + address.getHostName() + ":" + address.getPort())
-		}
-		
 		try {
+			if (targetUrl == null) {
+				targetUrl = new URL("http://" + address.getHostName() + ":" + address.getPort());
+			}
 			if (isHttp) {
 				transceiver = new HttpTransceiver(targetUrl);
 			} else {
