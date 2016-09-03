@@ -22,8 +22,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
@@ -52,10 +55,8 @@ import org.slf4j.LoggerFactory;
 public class EventIpcClient<E> {
 
 	protected int batchSize = 1000;
-	protected long connectTimeout = TimeUnit.MILLISECONDS.convert(20,
-			TimeUnit.SECONDS);
-	protected long requestTimeout = TimeUnit.MILLISECONDS.convert(20,
-			TimeUnit.SECONDS);
+	protected long connectTimeout = TimeUnit.MILLISECONDS.convert(20, TimeUnit.SECONDS);
+	protected long requestTimeout = TimeUnit.MILLISECONDS.convert(20, TimeUnit.SECONDS);
 
 	protected ExecutorService callTimeoutPool;
 	protected final ReentrantLock stateLock = new ReentrantLock();
@@ -79,8 +80,7 @@ public class EventIpcClient<E> {
 	protected Class<E> exClass;
 	protected E avroClient;
 
-	protected static final Logger logger = LoggerFactory
-			.getLogger(EventIpcClient.class);
+	protected static final Logger logger = LoggerFactory.getLogger(EventIpcClient.class);
 	protected boolean enableDeflateCompression;
 	protected int compressionLevel;
 
@@ -114,8 +114,7 @@ public class EventIpcClient<E> {
 	 */
 	private void connect(long timeout, TimeUnit tu) throws FlumeException {
 		callTimeoutPool = Executors
-				.newCachedThreadPool(new TransceiverThreadFactory(
-						"Flume Avro RPC Client Call Invoker"));
+				.newCachedThreadPool(new TransceiverThreadFactory("Flume Avro RPC Client Call Invoker"));
 		NioClientSocketChannelFactory socketChannelFactory = null;
 
 		try {
@@ -123,44 +122,33 @@ public class EventIpcClient<E> {
 				targetUrl = new URL("http://" + address.getHostName() + ":" + address.getPort());
 			}
 			if (isHttp) {
-				transceiver = new HttpTransceiver(targetUrl);
+				if (targetUrl.toString().startsWith("https://")) {
+					SSLContext ssl = SSLContext.getInstance("TLSv1");
+					ssl.init(null, new TrustManager[] { new PermissiveTrustManager() }, null);
+					SSLSocketFactory factory = ssl.getSocketFactory();
+					HostnameVerifier verifier = new PermissiveHostnameVerifier();
+					transceiver = new HttpsTransceiver(targetUrl, factory, verifier);
+				} else {
+					transceiver = new HttpTransceiver(targetUrl);
+				}
 			} else {
-
 				if (enableDeflateCompression || enableSsl) {
 					socketChannelFactory = new SSLCompressionChannelFactory(
-							Executors
-									.newCachedThreadPool(new TransceiverThreadFactory(
-											"Avro "
-													+ NettyTransceiver.class
-															.getSimpleName()
-													+ " Boss")),
-							Executors
-									.newCachedThreadPool(new TransceiverThreadFactory(
-											"Avro "
-													+ NettyTransceiver.class
-															.getSimpleName()
-													+ " I/O Worker")),
-							enableDeflateCompression, enableSsl, trustAllCerts,
-							compressionLevel, truststore, truststorePassword,
-							truststoreType);
+							Executors.newCachedThreadPool(new TransceiverThreadFactory(
+									"Avro " + NettyTransceiver.class.getSimpleName() + " Boss")),
+							Executors.newCachedThreadPool(new TransceiverThreadFactory(
+									"Avro " + NettyTransceiver.class.getSimpleName() + " I/O Worker")),
+							enableDeflateCompression, enableSsl, trustAllCerts, compressionLevel, truststore,
+							truststorePassword, truststoreType);
 				} else {
 					socketChannelFactory = new NioClientSocketChannelFactory(
-							Executors
-									.newCachedThreadPool(new TransceiverThreadFactory(
-											"Avro "
-													+ NettyTransceiver.class
-															.getSimpleName()
-													+ " Boss")),
-							Executors
-									.newCachedThreadPool(new TransceiverThreadFactory(
-											"Avro "
-													+ NettyTransceiver.class
-															.getSimpleName()
-													+ " I/O Worker")));
+							Executors.newCachedThreadPool(new TransceiverThreadFactory(
+									"Avro " + NettyTransceiver.class.getSimpleName() + " Boss")),
+							Executors.newCachedThreadPool(new TransceiverThreadFactory(
+									"Avro " + NettyTransceiver.class.getSimpleName() + " I/O Worker")));
 				}
 
-				transceiver = new NettyTransceiver(this.address,
-						socketChannelFactory, tu.toMillis(timeout));
+				transceiver = new NettyTransceiver(this.address, socketChannelFactory, tu.toMillis(timeout));
 			}
 			avroClient = SpecificRequestor.getClient(this.exClass, transceiver);
 
@@ -189,14 +177,10 @@ public class EventIpcClient<E> {
 		if (callTimeoutPool != null) {
 			callTimeoutPool.shutdown();
 			try {
-				if (!callTimeoutPool.awaitTermination(requestTimeout,
-						TimeUnit.MILLISECONDS)) {
+				if (!callTimeoutPool.awaitTermination(requestTimeout, TimeUnit.MILLISECONDS)) {
 					callTimeoutPool.shutdownNow();
-					if (!callTimeoutPool.awaitTermination(requestTimeout,
-							TimeUnit.MILLISECONDS)) {
-						logger.warn(this
-								+ ": Unable to cleanly shut down call timeout "
-								+ "pool");
+					if (!callTimeoutPool.awaitTermination(requestTimeout, TimeUnit.MILLISECONDS)) {
+						logger.warn(this + ": Unable to cleanly shut down call timeout " + "pool");
 					}
 				}
 			} catch (InterruptedException ex) {
@@ -221,8 +205,7 @@ public class EventIpcClient<E> {
 
 	@Override
 	public String toString() {
-		return "NettyAvroRpcClient { host: " + address.getHostName()
-				+ ", port: " + address.getPort() + " }";
+		return "NettyAvroRpcClient { host: " + address.getHostName() + ", port: " + address.getPort() + " }";
 	}
 
 	/**
@@ -238,8 +221,7 @@ public class EventIpcClient<E> {
 		stateLock.lock();
 		try {
 			if (connState == ConnState.DEAD && connState != newState) {
-				throw new IllegalStateException(
-						"Cannot transition from CLOSED state.");
+				throw new IllegalStateException("Cannot transition from CLOSED state.");
 			}
 			connState = newState;
 		} finally {
@@ -255,9 +237,7 @@ public class EventIpcClient<E> {
 		try {
 			ConnState curState = connState;
 			if (curState != ConnState.READY) {
-				throw new EventDeliveryException(
-						"RPC failed, client in an invalid " + "state: "
-								+ curState);
+				throw new EventDeliveryException("RPC failed, client in an invalid " + "state: " + curState);
 			}
 		} finally {
 			stateLock.unlock();
@@ -267,8 +247,7 @@ public class EventIpcClient<E> {
 	/**
 	 * Helper function to convert a map of String to a map of CharSequence.
 	 */
-	private static Map<CharSequence, CharSequence> toCharSeqMap(
-			Map<String, String> stringMap) {
+	private static Map<CharSequence, CharSequence> toCharSeqMap(Map<String, String> stringMap) {
 		Map<CharSequence, CharSequence> charSeqMap = new HashMap<CharSequence, CharSequence>();
 		for (Map.Entry<String, String> entry : stringMap.entrySet()) {
 			charSeqMap.put(entry.getKey(), entry.getValue());
@@ -299,7 +278,8 @@ public class EventIpcClient<E> {
 	 * <p>
 	 * <tt>alias_for_host</tt> = <i>hostname:port</i>.
 	 * </p>
-	 * Only the first host is added, rest are discarded.</p>
+	 * Only the first host is added, rest are discarded.
+	 * </p>
 	 * <p>
 	 * Optionally it can also have a
 	 * <p>
@@ -310,42 +290,35 @@ public class EventIpcClient<E> {
 	 * @return
 	 */
 
-	public synchronized void configure(Properties properties)
-			throws FlumeException {
+	public synchronized void configure(Properties properties) throws FlumeException {
 		stateLock.lock();
 		try {
 			if (connState == ConnState.READY || connState == ConnState.DEAD) {
-				throw new FlumeException("This client was already configured, "
-						+ "cannot reconfigure.");
+				throw new FlumeException("This client was already configured, " + "cannot reconfigure.");
 			}
 		} finally {
 			stateLock.unlock();
 		}
 
 		// batch size
-		String strBatchSize = properties
-				.getProperty(RpcClientConfigurationConstants.CONFIG_BATCH_SIZE);
+		String strBatchSize = properties.getProperty(RpcClientConfigurationConstants.CONFIG_BATCH_SIZE);
 		logger.debug("Batch size string = " + strBatchSize);
 		batchSize = RpcClientConfigurationConstants.DEFAULT_BATCH_SIZE;
 		if (strBatchSize != null && !strBatchSize.isEmpty()) {
 			try {
 				int parsedBatch = Integer.parseInt(strBatchSize);
 				if (parsedBatch < 1) {
-					logger.warn(
-							"Invalid value for batchSize: {}; Using default value.",
-							parsedBatch);
+					logger.warn("Invalid value for batchSize: {}; Using default value.", parsedBatch);
 				} else {
 					batchSize = parsedBatch;
 				}
 			} catch (NumberFormatException e) {
-				logger.warn("Batchsize is not valid for RpcClient: "
-						+ strBatchSize + ". Default value assigned.", e);
+				logger.warn("Batchsize is not valid for RpcClient: " + strBatchSize + ". Default value assigned.", e);
 			}
 		}
 
 		// host and port
-		String hostNames = properties
-				.getProperty(RpcClientConfigurationConstants.CONFIG_HOSTS);
+		String hostNames = properties.getProperty(RpcClientConfigurationConstants.CONFIG_HOSTS);
 		String[] hosts = null;
 		if (hostNames != null && !hostNames.isEmpty()) {
 			hosts = hostNames.split("\\s+");
@@ -355,13 +328,11 @@ public class EventIpcClient<E> {
 
 		if (hosts.length > 1) {
 			logger.warn("More than one hosts are specified for the default client. "
-					+ "Only the first host will be used and others ignored. Specified: "
-					+ hostNames + "; to be used: " + hosts[0]);
+					+ "Only the first host will be used and others ignored. Specified: " + hostNames + "; to be used: "
+					+ hosts[0]);
 		}
 
-		String host = properties
-				.getProperty(RpcClientConfigurationConstants.CONFIG_HOSTS_PREFIX
-						+ hosts[0]);
+		String host = properties.getProperty(RpcClientConfigurationConstants.CONFIG_HOSTS_PREFIX + hosts[0]);
 		if (host == null || host.isEmpty()) {
 			throw new FlumeException("Host not found: " + hosts[0]);
 		}
@@ -379,69 +350,54 @@ public class EventIpcClient<E> {
 
 		// connect timeout
 		connectTimeout = RpcClientConfigurationConstants.DEFAULT_CONNECT_TIMEOUT_MILLIS;
-		String strConnTimeout = properties
-				.getProperty(RpcClientConfigurationConstants.CONFIG_CONNECT_TIMEOUT);
+		String strConnTimeout = properties.getProperty(RpcClientConfigurationConstants.CONFIG_CONNECT_TIMEOUT);
 		if (strConnTimeout != null && strConnTimeout.trim().length() > 0) {
 			try {
 				connectTimeout = Long.parseLong(strConnTimeout);
 				if (connectTimeout < 1000) {
-					logger.warn("Connection timeout specified less than 1s. "
-							+ "Using default value instead.");
+					logger.warn("Connection timeout specified less than 1s. " + "Using default value instead.");
 					connectTimeout = RpcClientConfigurationConstants.DEFAULT_CONNECT_TIMEOUT_MILLIS;
 				}
 			} catch (NumberFormatException ex) {
-				logger.error("Invalid connect timeout specified: "
-						+ strConnTimeout);
+				logger.error("Invalid connect timeout specified: " + strConnTimeout);
 			}
 		}
 
 		// request timeout
 		requestTimeout = RpcClientConfigurationConstants.DEFAULT_REQUEST_TIMEOUT_MILLIS;
-		String strReqTimeout = properties
-				.getProperty(RpcClientConfigurationConstants.CONFIG_REQUEST_TIMEOUT);
+		String strReqTimeout = properties.getProperty(RpcClientConfigurationConstants.CONFIG_REQUEST_TIMEOUT);
 		if (strReqTimeout != null && strReqTimeout.trim().length() > 0) {
 			try {
 				requestTimeout = Long.parseLong(strReqTimeout);
 				if (requestTimeout < 1000) {
-					logger.warn("Request timeout specified less than 1s. "
-							+ "Using default value instead.");
+					logger.warn("Request timeout specified less than 1s. " + "Using default value instead.");
 					requestTimeout = RpcClientConfigurationConstants.DEFAULT_REQUEST_TIMEOUT_MILLIS;
 				}
 			} catch (NumberFormatException ex) {
-				logger.error("Invalid request timeout specified: "
-						+ strReqTimeout);
+				logger.error("Invalid request timeout specified: " + strReqTimeout);
 			}
 		}
 
-		String enableCompressionStr = properties
-				.getProperty(RpcClientConfigurationConstants.CONFIG_COMPRESSION_TYPE);
-		if (enableCompressionStr != null
-				&& enableCompressionStr.equalsIgnoreCase("deflate")) {
+		String enableCompressionStr = properties.getProperty(RpcClientConfigurationConstants.CONFIG_COMPRESSION_TYPE);
+		if (enableCompressionStr != null && enableCompressionStr.equalsIgnoreCase("deflate")) {
 			this.enableDeflateCompression = true;
-			String compressionLvlStr = properties
-					.getProperty(RpcClientConfigurationConstants.CONFIG_COMPRESSION_LEVEL);
+			String compressionLvlStr = properties.getProperty(RpcClientConfigurationConstants.CONFIG_COMPRESSION_LEVEL);
 			compressionLevel = RpcClientConfigurationConstants.DEFAULT_COMPRESSION_LEVEL;
 			if (compressionLvlStr != null) {
 				try {
 					compressionLevel = Integer.parseInt(compressionLvlStr);
 				} catch (NumberFormatException ex) {
-					logger.error("Invalid compression level: "
-							+ compressionLvlStr);
+					logger.error("Invalid compression level: " + compressionLvlStr);
 				}
 			}
 		}
 
-		enableSsl = Boolean.parseBoolean(properties
-				.getProperty(RpcClientConfigurationConstants.CONFIG_SSL));
+		enableSsl = Boolean.parseBoolean(properties.getProperty(RpcClientConfigurationConstants.CONFIG_SSL));
 		trustAllCerts = Boolean
-				.parseBoolean(properties
-						.getProperty(RpcClientConfigurationConstants.CONFIG_TRUST_ALL_CERTS));
-		truststore = properties
-				.getProperty(RpcClientConfigurationConstants.CONFIG_TRUSTSTORE);
-		truststorePassword = properties
-				.getProperty(RpcClientConfigurationConstants.CONFIG_TRUSTSTORE_PASSWORD);
-		truststoreType = properties.getProperty(
-				RpcClientConfigurationConstants.CONFIG_TRUSTSTORE_TYPE, "JKS");
+				.parseBoolean(properties.getProperty(RpcClientConfigurationConstants.CONFIG_TRUST_ALL_CERTS));
+		truststore = properties.getProperty(RpcClientConfigurationConstants.CONFIG_TRUSTSTORE);
+		truststorePassword = properties.getProperty(RpcClientConfigurationConstants.CONFIG_TRUSTSTORE_PASSWORD);
+		truststoreType = properties.getProperty(RpcClientConfigurationConstants.CONFIG_TRUSTSTORE_TYPE, "JKS");
 
 		this.connect();
 	}
@@ -482,8 +438,7 @@ public class EventIpcClient<E> {
 	 * Factory of SSL-enabled client channels Copied from Avro's
 	 * org.apache.avro.ipc.TestNettyServerWithSSL test
 	 */
-	private static class SSLCompressionChannelFactory extends
-			NioClientSocketChannelFactory {
+	private static class SSLCompressionChannelFactory extends NioClientSocketChannelFactory {
 
 		private boolean enableCompression;
 		private int compressionLevel;
@@ -493,11 +448,9 @@ public class EventIpcClient<E> {
 		private String truststorePassword;
 		private String truststoreType;
 
-		public SSLCompressionChannelFactory(Executor bossExecutor,
-				Executor workerExecutor, boolean enableCompression,
-				boolean enableSsl, boolean trustAllCerts, int compressionLevel,
-				String truststore, String truststorePassword,
-				String truststoreType) {
+		public SSLCompressionChannelFactory(Executor bossExecutor, Executor workerExecutor, boolean enableCompression,
+				boolean enableSsl, boolean trustAllCerts, int compressionLevel, String truststore,
+				String truststorePassword, String truststoreType) {
 			super(bossExecutor, workerExecutor);
 			this.enableCompression = enableCompression;
 			this.enableSsl = enableSsl;
@@ -522,23 +475,20 @@ public class EventIpcClient<E> {
 						logger.warn("No truststore configured, setting TrustManager to accept"
 								+ " all server certificates");
 						managers = new TrustManager[] { new PermissiveTrustManager() };
+
 					} else {
 						KeyStore keystore = null;
 
 						if (truststore != null) {
 							if (truststorePassword == null) {
-								throw new NullPointerException(
-										"truststore password is null");
+								throw new NullPointerException("truststore password is null");
 							}
-							InputStream truststoreStream = new FileInputStream(
-									truststore);
+							InputStream truststoreStream = new FileInputStream(truststore);
 							keystore = KeyStore.getInstance(truststoreType);
-							keystore.load(truststoreStream,
-									truststorePassword.toCharArray());
+							keystore.load(truststoreStream, truststorePassword.toCharArray());
 						}
 
-						TrustManagerFactory tmf = TrustManagerFactory
-								.getInstance("SunX509");
+						TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
 						// null keystore is OK, with SunX509 it defaults to
 						// system CA Certs
 						// see
@@ -582,5 +532,17 @@ public class EventIpcClient<E> {
 		public X509Certificate[] getAcceptedIssuers() {
 			return new X509Certificate[0];
 		}
+	}
+
+	/**
+	 * Permissive HostnameVerifier trust any host
+	 */
+	private static class PermissiveHostnameVerifier implements HostnameVerifier {
+
+		public boolean verify(String hostname, SSLSession session) {
+			// TODO Auto-generated method stub
+			return true;
+		}
+
 	}
 }
