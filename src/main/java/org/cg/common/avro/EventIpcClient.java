@@ -91,6 +91,10 @@ public class EventIpcClient<E> {
 	public EventIpcClient(Class<E> exClass) {
 		this.exClass = exClass;
 	}
+	
+	public void setTrustAll(boolean trustAll) {
+		this.trustAllCerts = trustAll;
+	}
 
 	public E getAvroClient() {
 		return avroClient;
@@ -122,7 +126,7 @@ public class EventIpcClient<E> {
 				targetUrl = new URL("http://" + address.getHostName() + ":" + address.getPort());
 			}
 			if (isHttp) {
-				if (targetUrl.toString().startsWith("https://")) {
+				if (targetUrl.toString().startsWith("https://") && trustAllCerts) {
 					SSLContext ssl = SSLContext.getInstance("TLSv1");
 					ssl.init(null, new TrustManager[] { new PermissiveTrustManager() }, null);
 					SSLSocketFactory factory = ssl.getSocketFactory();
