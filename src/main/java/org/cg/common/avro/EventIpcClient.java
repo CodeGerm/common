@@ -91,10 +91,6 @@ public class EventIpcClient<E> {
 	public EventIpcClient(Class<E> exClass) {
 		this.exClass = exClass;
 	}
-	
-	public void setTrustAll(boolean trustAll) {
-		this.trustAllCerts = trustAll;
-	}
 
 	public E getAvroClient() {
 		return avroClient;
