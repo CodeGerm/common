@@ -66,7 +66,6 @@ public class HttpsTransceiver extends Transceiver {
 	      connection = (HttpsURLConnection)url.openConnection();
 	    else
 	      connection = (HttpsURLConnection)url.openConnection(proxy);
-	    connection.setSSLSocketFactory(factory);
 	    connection.setHostnameVerifier(verifier);
 	    connection.setRequestMethod("POST");
 	    connection.setRequestProperty("Content-Type", CONTENT_TYPE);

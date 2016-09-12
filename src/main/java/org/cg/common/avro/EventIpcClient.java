@@ -123,9 +123,7 @@ public class EventIpcClient<E> {
 			}
 			if (isHttp) {
 				if (targetUrl.toString().startsWith("https://") && trustAllCerts) {
-					SSLContext ssl = SSLContext.getInstance("TLSv1");
-					ssl.init(null, new TrustManager[] { new PermissiveTrustManager() }, null);
-					SSLSocketFactory factory = ssl.getSocketFactory();
+					SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
 					HostnameVerifier verifier = new PermissiveHostnameVerifier();
 					transceiver = new HttpsTransceiver(targetUrl, factory, verifier);
 				} else {
