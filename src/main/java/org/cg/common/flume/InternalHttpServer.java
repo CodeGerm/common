@@ -28,7 +28,7 @@ public class InternalHttpServer implements Server {
 	/** Constructs a server to run on the named port. */
 	public InternalHttpServer(Responder responder, int port, int httpConnections)
 			throws IOException {
-		this(new ResponderServlet(responder), null, port, httpConnections);
+		this(new HealthAwareResponderServlet(responder), null, port, httpConnections);
 	}
 
 	/** Constructs a server to run on the named port. */
@@ -40,7 +40,7 @@ public class InternalHttpServer implements Server {
 	/** Constructs a server to run on the named port on the specified address. */
 	public InternalHttpServer(Responder responder, String bindAddress,
 			int port, int httpConnections) throws IOException {
-		this(new ResponderServlet(responder), bindAddress, port,
+		this(new HealthAwareResponderServlet(responder), bindAddress, port,
 				httpConnections);
 	}
 
@@ -66,7 +66,7 @@ public class InternalHttpServer implements Server {
 	/** Constructs a server to run with the given connector. */
 	public InternalHttpServer(Responder responder, Connector connector)
 			throws IOException {
-		this(new ResponderServlet(responder), connector);
+		this(new HealthAwareResponderServlet(responder), connector);
 	}
 
 	/** Constructs a server to run with the given connector. */
